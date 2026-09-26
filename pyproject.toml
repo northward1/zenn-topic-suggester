@@ -1,7 +1,7 @@
 [project]
 name = "zenn-topic-suggester"
 version = "0.1.0"
-description = "Zennの記事に設定する最適なトピックを自動で検索するCLIツール"
+description = "Zennの記事に設定する最適なトピックを検索するCLIツール"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
@@ -32,6 +32,11 @@ Issues = "https://github.com/northward1/zenn-topic-suggester/issues"
 [build-system]
 requires = ["uv_build>=0.9.24,<0.10.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
 
 [project.scripts]
 zenn-topic-suggest = "zenn_topic_suggester:main"
