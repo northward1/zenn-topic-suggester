@@ -10,6 +10,7 @@ import datetime
 import pandas as pd
 from zoneinfo import ZoneInfo
 from huggingface_hub import hf_hub_download
+import re
 
 MODEL_ID = "intfloat/multilingual-e5-small"
 ONNX_FILENAME = "onnx/model_qint8_avx512_vnni.onnx"
@@ -127,6 +128,12 @@ def main():
         help="推奨トピックを検索したいMarkdownファイルのパスを指定します。(例: ./articles/example.md)",
     )
     parser.add_argument(
+        "-s",
+        "--show_detail_score",
+        help="スコアの詳細なデータを出力するかどうかを指定します。デフォルトでは出力します。",
+        action="store_false",
+    )
+    parser.add_argument(
         "-n",
         "--lines",
         help="表示する推奨トピックの数を指定します。デフォルトは20個です。",
@@ -140,12 +147,32 @@ def main():
         type=int,
         default=100,
     )
+    parser.add_argument(
+        "-wc",
+        "--count_weight",
+        help="スコアを計算するときの記事数の重みを調整します。デフォルトは0.1です。",
+        type=float,
+        default=0.1,
+    )
+    parser.add_argument(
+        "-wf",
+        "--found_weight",
+        help="スコアを計算するときの完全一致の重みを調整します。デフォルトは0.1です。",
+        type=float,
+        default=0.1,
+    )
 
     args = parser.parse_args()
 
     input_file = args.input_file
     lines = args.lines
     lower_bound = args.lower_bound
+    show_detail_score = args.show_detail_score
+
+    # スコア計算用の定数
+    W_SIM = 1
+    W_COUNT = args.count_weight
+    W_FOUND = args.found_weight
 
     if not os.path.isfile(input_file):
         print(
@@ -189,17 +216,28 @@ def main():
     df["count_log"] = np.log1p(df["記事数"])
     df["count_norm"] = min_max_scale(df["count_log"])
 
-    W_SIM = 0.90
-    W_COUNT = 0.10
+    regex = re.compile("|".join(map(re.escape, topics)))
+    founds = set(regex.findall(content.lower()))
+    df["is_found"] = df.index.isin(founds).astype(int)
 
-    df["final_score"] = (W_SIM * df["sim_norm"]) + (W_COUNT * df["count_norm"])
+    df["final_score"] = (
+        min_max_scale(
+            (W_SIM * df["sim_norm"])
+            + (W_COUNT * df["count_norm"])
+            + (W_FOUND * df["is_found"])
+        )
+        * 100
+    )
 
     top_recommendations = df.sort_values(by="final_score", ascending=False).head(lines)
 
     for topic, row in top_recommendations.iterrows():
-        print(
-            f'- {topic:<20} # スコア: {row["final_score"].round(2):.2f}, 類似度: {row["sim_norm"].round(2):.2f}, 直近半年の記事数: {int(row["記事数"])}'
-        )
+        if show_detail_score:
+            print(
+                f"- {topic:<20} # スコア: {row["final_score"].round(2):6.2f}, 完全一致: {bool(row["is_found"])} 類似度: {row["sim_norm"].round(2):.2f}, 直近半年の記事数: {int(row["記事数"])}"
+            )
+        else:
+            print(f"- {topic:<20}")
 
 
 if __name__ == "__main__":
