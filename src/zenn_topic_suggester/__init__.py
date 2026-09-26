@@ -17,14 +17,37 @@ ONNX_FILENAME = "onnx/model_qint8_avx512_vnni.onnx"
 DATA_PATH = Path(__file__).resolve().parent / "data.jsonl"
 
 
-def search_topics() -> pd.DataFrame:
+def search_topics(
+    start: datetime.datetime = datetime.datetime.today().astimezone(
+        ZoneInfo("Asia/Tokyo")
+    )
+    - datetime.timedelta(days=180),
+    end: datetime.datetime = datetime.datetime.today().astimezone(
+        ZoneInfo("Asia/Tokyo")
+    ),
+    lower_bound: int = 100,
+) -> pd.DataFrame:
+    """
+    記事のデータをすべて読み込み、公開日が [start, end] に含まれる記事からトピックの統計情報を抽出する。
+    トピックの内、紐づいた記事数が lower_bound 以上であるトピックの統計情報を返す。
+
+    Parameters
+    ----------
+    start: datetime.datetime
+        抽出対象とする期間の始点
+    end: datetime.datetime
+        抽出対象とする期間の終点
+    lower_bound: int
+        抽出対象とするトピックの記事数の下限
+
+    Returns
+    ----------
+    summary: pd.DataFrame
+        トピックの統計情報
+    """
     df = pd.read_json(DATA_PATH, lines=True)
 
-    # 半年前までの記事のデータを抽出する
-    now = datetime.datetime.today().astimezone(ZoneInfo("Asia/Tokyo"))
-    half_a_year_ago = now - datetime.timedelta(days=180)
-
-    df = df[df["published_at"] >= half_a_year_ago]
+    df = df[df["published_at"].between(start, end)]
 
     df = df.explode("topics")
 
@@ -34,8 +57,8 @@ def search_topics() -> pd.DataFrame:
         Like数の中央値=("authenticated_liked_count", "median"),
     )
 
-    # 半年間で100記事以上投稿されているトピックを抽出する
-    summary = summary[summary["記事数"] >= 100]
+    # 指定した期間で lower_bound 記事以上投稿されているトピックを抽出する
+    summary = summary[summary["記事数"] >= lower_bound]
 
     return summary
 
@@ -110,11 +133,19 @@ def main():
         type=int,
         default=20,
     )
+    parser.add_argument(
+        "-l",
+        "--lower_bound",
+        help="推奨されるトピックの候補となるトピックの期間内に投稿された記事数の下限を指定します。デフォルトは100個です。",
+        type=int,
+        default=100,
+    )
 
     args = parser.parse_args()
 
     input_file = args.input_file
     lines = args.lines
+    lower_bound = args.lower_bound
 
     if not os.path.isfile(input_file):
         print(
@@ -126,7 +157,7 @@ def main():
     with open(input_file, mode="r", encoding="utf-8") as f:
         content = f.read()
 
-    df = search_topics()
+    df = search_topics(lower_bound=lower_bound)
 
     topics = df.index.values
 
