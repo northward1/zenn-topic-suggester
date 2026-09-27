@@ -13,6 +13,7 @@ import re
 import requests
 import platformdirs
 from pathlib import Path
+import unicodedata
 
 MODEL_ID = "intfloat/multilingual-e5-small"
 ONNX_FILENAME = "onnx/model_qint8_avx512_vnni.onnx"
@@ -140,6 +141,16 @@ def min_max_scale(series: pd.Series) -> pd.Series:
     return (series - min_val) / (max_val - min_val)
 
 
+def get_east_asian_width_count(text):
+    count = 0
+    for c in text:
+        if unicodedata.east_asian_width(c) in "FWA":
+            count += 2
+        else:
+            count += 1
+    return count
+
+
 def main():
     # 引数の設定や処理
     parser = argparse.ArgumentParser(prog="zenn-topic-suggester", description="")
@@ -261,10 +272,10 @@ def main():
     for topic, row in top_recommendations.iterrows():
         if show_detail_score:
             print(
-                f"- {topic:<20} # スコア: {row["final_score"].round(2):6.2f}, 完全一致: {bool(row["is_found"])} 類似度: {row["sim_norm"].round(2):.2f}, 記事数: {int(row["記事数"])}"
+                f"- {topic + " " * (20 - get_east_asian_width_count(topic))} # スコア: {row["final_score"].round(2):6.2f}, 完全一致: {bool(row["is_found"])} 類似度: {row["sim_norm"].round(2):.2f}, 記事数: {int(row["記事数"])}"
             )
         else:
-            print(f"- {topic:<20}")
+            print(f"- {topic + " " * (20 - get_east_asian_width_count(topic))}")
 
 
 if __name__ == "__main__":
