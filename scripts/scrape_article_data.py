@@ -117,10 +117,13 @@ def main():
         urls.extend(fetch_article_sitemap(sitemap))
 
     for url in urls:
-        d = fetch_article(url)
+        try:
+            d = fetch_article(url)
 
-        with open(DATA_PATH, mode="a", encoding="utf-8") as f:
-            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+            with open(DATA_PATH, mode="a", encoding="utf-8") as f:
+                f.write(json.dumps(d, ensure_ascii=False) + "\n")
+        except:
+            continue
 
 
 if __name__ == "__main__":
