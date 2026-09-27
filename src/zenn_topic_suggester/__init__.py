@@ -261,7 +261,7 @@ def main():
     for topic, row in top_recommendations.iterrows():
         if show_detail_score:
             print(
-                f"- {topic:<20} # スコア: {row["final_score"].round(2):6.2f}, 完全一致: {bool(row["is_found"])} 類似度: {row["sim_norm"].round(2):.2f}, 直近半年の記事数: {int(row["記事数"])}"
+                f"- {topic:<20} # スコア: {row["final_score"].round(2):6.2f}, 完全一致: {bool(row["is_found"])} 類似度: {row["sim_norm"].round(2):.2f}, 記事数: {int(row["記事数"])}"
             )
         else:
             print(f"- {topic:<20}")
