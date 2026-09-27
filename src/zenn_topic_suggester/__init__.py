@@ -12,12 +12,13 @@ from huggingface_hub import hf_hub_download
 import re
 import requests
 import platformdirs
+from pathlib import Path
 
 MODEL_ID = "intfloat/multilingual-e5-small"
 ONNX_FILENAME = "onnx/model_qint8_avx512_vnni.onnx"
 
 DATA_URL = "https://raw.githubusercontent.com/northward1/zenn-topic-suggester/refs/heads/main/data.jsonl"
-CACHE_DIR = platformdirs.user_cache_dir("zenn-topic-suggester")
+CACHE_DIR = Path(platformdirs.user_cache_dir("zenn-topic-suggester"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 DATA_PATH = CACHE_DIR / "data.jsonl"
 
@@ -75,8 +76,6 @@ def search_topics(
 
     summary = df.groupby("topics").agg(
         記事数=("authenticated_liked_count", "count"),
-        平均Like数=("authenticated_liked_count", "mean"),
-        Like数の中央値=("authenticated_liked_count", "median"),
     )
 
     # 指定した期間で lower_bound 記事以上投稿されているトピックを抽出する
