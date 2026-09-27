@@ -4,28 +4,49 @@ import argparse
 import os
 import sys
 from typing import List
-from pathlib import Path
 import numpy as np
-import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 from zoneinfo import ZoneInfo
 from huggingface_hub import hf_hub_download
 import re
+import requests
+import platformdirs
 
 MODEL_ID = "intfloat/multilingual-e5-small"
 ONNX_FILENAME = "onnx/model_qint8_avx512_vnni.onnx"
 
-DATA_PATH = Path(__file__).resolve().parent / "data.jsonl"
+DATA_URL = "https://raw.githubusercontent.com/northward1/zenn-topic-suggester/refs/heads/main/data.jsonl"
+CACHE_DIR = platformdirs.user_cache_dir("zenn-topic-suggester")
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+DATA_PATH = CACHE_DIR / "data.jsonl"
+
+
+def fetch_articles_data() -> pd.DataFrame:
+    # 一週間以内に取得したcacheがあるなら、それを利用する
+    if os.path.isfile(DATA_PATH):
+        file_mtime = datetime.fromtimestamp(DATA_PATH.stat().st_mtime)
+
+        if file_mtime >= datetime.now() - timedelta(days=7):
+            return pd.read_json(DATA_PATH, lines=True)
+
+    # そうでないなら、再取得する
+    r = requests.get(DATA_URL)
+
+    if r.status_code != requests.codes.ok:
+        print(f"記事データのダウンロードに失敗しました。", file=sys.stderr)
+        sys.exit(1)
+
+    with open(DATA_PATH, "w", encoding="utf-8") as f:
+        f.write(r.text)
+
+    return pd.read_json(DATA_PATH, lines=True)
 
 
 def search_topics(
-    start: datetime.datetime = datetime.datetime.today().astimezone(
-        ZoneInfo("Asia/Tokyo")
-    )
-    - datetime.timedelta(days=180),
-    end: datetime.datetime = datetime.datetime.today().astimezone(
-        ZoneInfo("Asia/Tokyo")
-    ),
+    start: datetime = datetime.today().astimezone(ZoneInfo("Asia/Tokyo"))
+    - timedelta(days=180),
+    end: datetime = datetime.today().astimezone(ZoneInfo("Asia/Tokyo")),
     lower_bound: int = 100,
 ) -> pd.DataFrame:
     """
@@ -46,7 +67,7 @@ def search_topics(
     summary: pd.DataFrame
         トピックの統計情報
     """
-    df = pd.read_json(DATA_PATH, lines=True)
+    df = fetch_articles_data()
 
     df = df[df["published_at"].between(start, end)]
 
