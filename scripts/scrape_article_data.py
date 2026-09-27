@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import time
 from bs4 import BeautifulSoup
 import json
+from tqdm import tqdm
 
 DATA_PATH = "data.jsonl"
 
@@ -116,7 +117,7 @@ def main():
     for sitemap in article_sitemaps:
         urls.extend(fetch_article_sitemap(sitemap))
 
-    for url in urls:
+    for url in tqdm(urls, desc="Fetching articles"):
         try:
             d = fetch_article(url)
 
