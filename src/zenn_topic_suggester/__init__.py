@@ -148,18 +148,25 @@ def main():
         default=100,
     )
     parser.add_argument(
+        "-ws",
+        "--sim_weight",
+        help="スコアを計算するときの類似度の重みを調整します。デフォルトは1.0です。",
+        type=float,
+        default=1.0,
+    )
+    parser.add_argument(
         "-wc",
         "--count_weight",
-        help="スコアを計算するときの記事数の重みを調整します。デフォルトは0.1です。",
+        help="スコアを計算するときの記事数の重みを調整します。デフォルトは1.0です。",
         type=float,
-        default=0.1,
+        default=1.0,
     )
     parser.add_argument(
         "-wf",
         "--found_weight",
-        help="スコアを計算するときの完全一致の重みを調整します。デフォルトは0.1です。",
+        help="スコアを計算するときの完全一致の重みを調整します。デフォルトは0.45です。",
         type=float,
-        default=0.1,
+        default=0.45,
     )
 
     args = parser.parse_args()
@@ -170,7 +177,7 @@ def main():
     show_detail_score = args.show_detail_score
 
     # スコア計算用の定数
-    W_SIM = 1
+    W_SIM = args.sim_weight
     W_COUNT = args.count_weight
     W_FOUND = args.found_weight
 
