@@ -71,12 +71,12 @@ def search_topics(
     """
     df = fetch_articles_data()
 
-    df = df[df["published_at"].between(start, end)]
+    df = df[pd.to_datetime(df["published_at"], utc=True).between(start, end)]
 
     df = df.explode("topics")
 
     summary = df.groupby("topics").agg(
-        記事数=("authenticated_liked_count", "count"),
+        記事数=("hash", "count"),
     )
 
     # 指定した期間で lower_bound 記事以上投稿されているトピックを抽出する
