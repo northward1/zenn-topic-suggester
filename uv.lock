@@ -1134,6 +1134,7 @@ dev = [
     { name = "beautifulsoup4" },
     { name = "optuna" },
     { name = "pytest" },
+    { name = "tqdm" },
 ]
 
 [package.metadata]
@@ -1152,4 +1153,5 @@ dev = [
     { name = "beautifulsoup4", specifier = ">=4.15.0" },
     { name = "optuna", specifier = ">=5.0.0" },
     { name = "pytest", specifier = ">=9.1.1" },
+    { name = "tqdm", specifier = ">=4.70.1" },
 ]
