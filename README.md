@@ -23,7 +23,7 @@ pip install zenn-topic-suggester
 
 ## 使い方
 
-`zenn-topic-suggest path/to/article.md`のように実行します。  
+`zenn-topic-suggester path/to/article.md`のように実行します。  
 以下のように、推奨トピックがスコアの降順で出力されます。
 スコアは現在、類似度や記事数の対数、完全に一致した単語があるかなどをもとに計算しており、これからも改善していく予定です。
 
@@ -41,6 +41,6 @@ pip install zenn-topic-suggester
 
 ### オプション
 
-提示されるトピックの数を変更したいときは`zenn-topic-suggest path/to/article.md -n 50`のように指定します。デフォルトは20です。  
-スコアのデータが必要ない場合は、`zenn-topic-suggest path/to/article.md -s`のように指定します。  
-その他にもいくつかオプションがあります。`zenn-topic-suggest -h`でヘルプを表示して確認できます。
+提示されるトピックの数を変更したいときは`zenn-topic-suggester path/to/article.md -n 50`のように指定します。デフォルトは20です。  
+スコアのデータが必要ない場合は、`zenn-topic-suggester path/to/article.md -s`のように指定します。  
+その他にもいくつかオプションがあります。`zenn-topic-suggester -h`でヘルプを表示して確認できます。

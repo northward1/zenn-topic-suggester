@@ -47,4 +47,5 @@ dev = [
 ]
 
 [project.scripts]
+zenn-topic-suggester = "zenn_topic_suggester:main"
 zenn-topic-suggest = "zenn_topic_suggester:main"
