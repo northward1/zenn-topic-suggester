@@ -25,9 +25,9 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 DATA_PATH = CACHE_DIR / "data.jsonl"
 
 
-def fetch_articles_data() -> pd.DataFrame:
+def fetch_articles_data(reload_cache: bool = False) -> pd.DataFrame:
     # 一週間以内に取得したcacheがあるなら、それを利用する
-    if os.path.isfile(DATA_PATH):
+    if not reload_cache and os.path.isfile(DATA_PATH):
         file_mtime = datetime.fromtimestamp(DATA_PATH.stat().st_mtime)
 
         if file_mtime >= datetime.now() - timedelta(days=7):
@@ -51,6 +51,7 @@ def search_topics(
     - timedelta(days=180),
     end: datetime = datetime.today().astimezone(ZoneInfo("Asia/Tokyo")),
     lower_bound: int = 100,
+    reload_cache: bool = False,
 ) -> pd.DataFrame:
     """
     記事のデータをすべて読み込み、公開日が [start, end] に含まれる記事からトピックの統計情報を抽出する。
@@ -70,7 +71,7 @@ def search_topics(
     summary: pd.DataFrame
         トピックの統計情報
     """
-    df = fetch_articles_data()
+    df = fetch_articles_data(reload_cache)
 
     df = df[pd.to_datetime(df["published_at"], utc=True).between(start, end)]
 
@@ -166,6 +167,12 @@ def main():
         action="store_false",
     )
     parser.add_argument(
+        "-r",
+        "--reload_cache",
+        help="最新の記事データに更新したいときに指定します。デフォルトでは前回の取得から一週間以上経過したときだけ更新します。",
+        action="store_true",
+    )
+    parser.add_argument(
         "-n",
         "--lines",
         help="表示する推奨トピックの数を指定します。デフォルトは20個です。",
@@ -207,6 +214,7 @@ def main():
     lines = args.lines
     lower_bound = args.lower_bound
     show_detail_score = args.show_detail_score
+    reload_cache = args.reload_cache
 
     # スコア計算用の定数
     W_SIM = args.sim_weight
@@ -223,7 +231,7 @@ def main():
     with open(input_file, mode="r", encoding="utf-8") as f:
         content = f.read()
 
-    df = search_topics(lower_bound=lower_bound)
+    df = search_topics(lower_bound=lower_bound, reload_cache=reload_cache)
 
     topics = df.index.values
 
