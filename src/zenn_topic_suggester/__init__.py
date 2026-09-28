@@ -14,6 +14,7 @@ import requests
 import platformdirs
 from pathlib import Path
 import unicodedata
+import ahocorasick
 
 MODEL_ID = "intfloat/multilingual-e5-small"
 ONNX_FILENAME = "onnx/model_qint8_avx512_vnni.onnx"
@@ -254,8 +255,14 @@ def main():
     df["count_log"] = np.log1p(df["記事数"])
     df["count_norm"] = min_max_scale(df["count_log"])
 
-    regex = re.compile("|".join(map(re.escape, topics)))
-    founds = set(regex.findall(content.lower()))
+    automaton = ahocorasick.Automaton()
+
+    for topic in topics:
+        automaton.add_word(topic, topic)
+
+    automaton.make_automaton()
+    founds = {found_word for _, found_word in automaton.iter(content.lower())}
+
     df["is_found"] = df.index.isin(founds).astype(int)
 
     df["final_score"] = (
