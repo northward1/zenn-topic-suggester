@@ -1,7 +1,11 @@
+import os
+
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["HF_HUB_VERBOSITY"] = "error"
+
 import onnxruntime as ort
 from transformers import AutoTokenizer
 import argparse
-import os
 import sys
 from typing import List
 import numpy as np
@@ -9,7 +13,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 from zoneinfo import ZoneInfo
 from huggingface_hub import hf_hub_download
-import re
 import requests
 import platformdirs
 from pathlib import Path
