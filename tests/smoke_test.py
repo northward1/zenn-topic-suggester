@@ -1,5 +1,6 @@
 import datetime
 from zoneinfo import ZoneInfo
+from pathlib import Path
 
 try:
     import zenn_topic_suggester
@@ -12,7 +13,10 @@ def test_import():
 
 
 def test_load_data():
-    zenn_topic_suggester.search_topics()
+    df = zenn_topic_suggester.search_topics()
+    assert df is not None
+    assert df.index.name == "topics"
+    assert "記事数" in df.columns
 
 
 def test_load_data_setting_start_end_lb():
@@ -27,3 +31,11 @@ def test_load_data_setting_start_end_lb():
     )
 
     assert len(df) == 0
+    assert df.index.name == "topics"
+    assert "記事数" in df.columns
+
+
+def test_fetch_database():
+    db_path = zenn_topic_suggester.fetch_database()
+    assert isinstance(db_path, Path)
+    assert db_path.is_file()
