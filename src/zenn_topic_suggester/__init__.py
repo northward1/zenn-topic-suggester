@@ -7,7 +7,7 @@ import onnxruntime as ort
 from transformers import AutoTokenizer
 import argparse
 import sys
-from typing import List
+from typing import List, Optional
 import numpy as np
 from datetime import datetime, timedelta
 import pandas as pd
@@ -18,76 +18,121 @@ import platformdirs
 from pathlib import Path
 import unicodedata
 import ahocorasick
+import sqlite3
+import gzip
+import shutil
 
 MODEL_ID = "intfloat/multilingual-e5-small"
 ONNX_FILENAME = "onnx/model_qint8_avx512_vnni.onnx"
 
-DATA_URL = "https://raw.githubusercontent.com/northward1/zenn-topic-suggester/refs/heads/main/data.jsonl"
+DATA_URL = "https://github.com/northward1/zenn-stats-crawler/releases/latest/download/zenn_stats.db.gz"
 CACHE_DIR = Path(platformdirs.user_cache_dir("zenn-topic-suggester"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
-DATA_PATH = CACHE_DIR / "data.jsonl"
+DB_PATH = CACHE_DIR / "zenn_stats.db"
 
 
-def fetch_articles_data(reload_cache: bool = False) -> pd.DataFrame:
-    # 一週間以内に取得したcacheがあるなら、それを利用する
-    if not reload_cache and os.path.isfile(DATA_PATH):
-        file_mtime = datetime.fromtimestamp(DATA_PATH.stat().st_mtime)
-
+def fetch_database(reload_cache: bool = False) -> Path:
+    """
+    zenn-stats-crawler の最新データベースを取得してキャッシュに保存する。
+    1週間以内に取得したキャッシュが存在する場合はそれを利用する。
+    """
+    if not reload_cache and DB_PATH.is_file():
+        file_mtime = datetime.fromtimestamp(DB_PATH.stat().st_mtime)
         if file_mtime >= datetime.now() - timedelta(days=7):
-            return pd.read_json(DATA_PATH, lines=True)
+            return DB_PATH
 
-    # そうでないなら、再取得する
-    r = requests.get(DATA_URL)
+    print("記事データベースをダウンロードしています...", file=sys.stderr)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) zenn-topic-suggester"
+    }
 
-    if r.status_code != requests.codes.ok:
-        print(f"記事データのダウンロードに失敗しました。", file=sys.stderr)
+    tmp_path = CACHE_DIR / "zenn_stats.db.tmp"
+    try:
+        with requests.get(DATA_URL, headers=headers, stream=True) as r:
+            r.raise_for_status()
+            with gzip.GzipFile(fileobj=r.raw) as gz, open(tmp_path, "wb") as f_out:
+                shutil.copyfileobj(gz, f_out)
+        tmp_path.replace(DB_PATH)
+        print("記事データベースのダウンロードが完了しました。", file=sys.stderr)
+    except Exception as e:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        print(f"記事データベースのダウンロードに失敗しました: {e}", file=sys.stderr)
         sys.exit(1)
 
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        f.write(r.text)
+    return DB_PATH
 
-    return pd.read_json(DATA_PATH, lines=True)
+
+def fetch_articles_data(reload_cache: bool = False) -> Path:
+    """後方互換性のためのエイリアス"""
+    return fetch_database(reload_cache)
 
 
 def search_topics(
-    start: datetime = datetime.today().astimezone(ZoneInfo("Asia/Tokyo"))
-    - timedelta(days=180),
-    end: datetime = datetime.today().astimezone(ZoneInfo("Asia/Tokyo")),
+    start: Optional[datetime] = None,
+    end: Optional[datetime] = None,
     lower_bound: int = 100,
     reload_cache: bool = False,
 ) -> pd.DataFrame:
     """
-    記事のデータをすべて読み込み、公開日が [start, end] に含まれる記事からトピックの統計情報を抽出する。
+    記事のデータベースを読み込み、公開日が [start, end] に含まれる記事からトピックの統計情報を抽出する。
     トピックの内、紐づいた記事数が lower_bound 以上であるトピックの統計情報を返す。
 
     Parameters
     ----------
-    start: datetime.datetime
-        抽出対象とする期間の始点
-    end: datetime.datetime
-        抽出対象とする期間の終点
+    start: datetime.datetime | None
+        抽出対象とする期間の始点（デフォルト: 現在から180日前）
+    end: datetime.datetime | None
+        抽出対象とする期間の終点（デフォルト: 現在）
     lower_bound: int
         抽出対象とするトピックの記事数の下限
+    reload_cache: bool
+        キャッシュを強制更新するかどうか
 
     Returns
     ----------
     summary: pd.DataFrame
-        トピックの統計情報
+        トピックの統計情報（インデックス: topics, カラム: 記事数）
     """
-    df = fetch_articles_data(reload_cache)
+    jst = ZoneInfo("Asia/Tokyo")
+    now_jst = datetime.today().astimezone(jst)
 
-    df = df[pd.to_datetime(df["published_at"], utc=True).between(start, end)]
+    if start is None:
+        start = now_jst - timedelta(days=180)
+    elif start.tzinfo is None:
+        start = start.replace(tzinfo=jst)
+    else:
+        start = start.astimezone(jst)
 
-    df = df.explode("topics")
+    if end is None:
+        end = now_jst
+    elif end.tzinfo is None:
+        end = end.replace(tzinfo=jst)
+    else:
+        end = end.astimezone(jst)
 
-    summary = df.groupby("topics").agg(
-        記事数=("hash", "count"),
-    )
+    db_file = fetch_database(reload_cache)
 
-    # 指定した期間で lower_bound 記事以上投稿されているトピックを抽出する
-    summary = summary[summary["記事数"] >= lower_bound]
+    query = """
+        SELECT j.value AS topics, COUNT(DISTINCT a.url_hash) AS 記事数
+        FROM articles a, json_each(a.topics) j
+        WHERE a.status = 'success'
+          AND a.published_at >= ?
+          AND a.published_at <= ?
+        GROUP BY j.value
+        HAVING COUNT(DISTINCT a.url_hash) >= ?
+        ORDER BY 記事数 DESC
+    """
 
-    return summary
+    with sqlite3.connect(db_file) as conn:
+        df = pd.read_sql_query(
+            query,
+            conn,
+            params=(start.isoformat(), end.isoformat(), lower_bound),
+            index_col="topics",
+        )
+
+    return df
 
 
 def get_embeddings(
